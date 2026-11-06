@@ -2,8 +2,7 @@ local RAW_BASE=
 [[https://raw.githubusercontent.com/454244513/Moon/main/script/library]]local
 RAYFIELD_URL='https://sirius.menu/gen2'local function 
 installDropdownLocalization(rayfield)local nativeCreateWindow=rayfield.
-CreateWindow rayfield.CreateWindow=function(library,properties)properties.locale
-='en'local window=nativeCreateWindow(library,properties)local function 
+CreateWindow rayfield.CreateWindow=function(library,properties)properties.locale=properties.locale or'en'local window=nativeCreateWindow(library,properties)local function 
 localizeDropdown(dropdown,settings)if not dropdown.selectedLabel or not dropdown
 ._optionFrames or not window._bindLocale then return dropdown end local
 placeholder=settings.placeholder or settings.Placeholder or'None'local
@@ -34,7 +33,29 @@ nativeCreate then container[method]=function(self,...)local child=nativeCreate(
 self,...)wrapContainer(child)return child end end end local nativeCreateDropdown
 =container.CreateDropdown if nativeCreateDropdown then container.CreateDropdown=
 function(self,settings)return localizeDropdown(nativeCreateDropdown(self,
-settings),settings)end end end wrapContainer(window)return window end end return
+settings),settings)end end end wrapContainer(window)return window end end local function detectLocale()
+	local ok, locale = pcall(function()
+		return game:GetService('Players').LocalPlayer.LocaleId
+	end)
+	if ok and type(locale) == 'string' and locale ~= '' then
+		return string.lower(locale):match('^zh') and 'zh-cn' or 'en'
+	end
+	local serviceOk, localizationService = pcall(function()
+		return game:GetService('LocalizationService')
+	end)
+	if serviceOk and localizationService then
+		for _, property in ipairs({ 'RobloxLocaleId', 'SystemLocaleId' }) do
+			local readOk, value = pcall(function()
+				return localizationService[property]
+			end)
+			if readOk and type(value) == 'string' and value ~= '' then
+				return string.lower(value):match('^zh') and 'zh-cn' or 'en'
+			end
+		end
+	end
+	return 'en'
+end
+return
 function(gameName)assert(type(gameName)=='string'and gameName~='',
 'A game name is required')local rayfield=loadstring(game:HttpGet(RAYFIELD_URL))(
 )local translationFile=gameName:gsub(' ','%%20')..'.luau'local ok,translations=
@@ -42,5 +63,5 @@ pcall(function()return loadstring(game:HttpGet(RAW_BASE..'/translations/'..
 translationFile))()end)if not ok or type(translations)~='table'then warn(
 '[Moon] Translation load failed for '..gameName..
 '; continuing without translations.')translations={}end rayfield.
-MoonTranslations=translations installDropdownLocalization(rayfield)return
+MoonTranslations=translations rayfield.MoonLocale=detectLocale() installDropdownLocalization(rayfield)return
 rayfield end
