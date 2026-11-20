@@ -30,6 +30,7 @@ return {
 		["Name Font Size"] = "名称字号",
 		["Name Color"] = "名称颜色",
 		["Bullet Tracers"] = "弹道曳光",
+		["Tracer Targets"] = "轨迹目标",
 		["Enemy"] = "敌人",
 		["Local Player"] = "本地玩家",
 		["Enemy Color"] = "敌人颜色",
