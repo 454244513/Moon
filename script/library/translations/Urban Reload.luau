@@ -43,6 +43,5 @@ return {
 		["Lightning"] = "闪电",
 		["DNA"] = "DNA",
 		["Duration"] = "持续时间",
-		["Test"] = "测试",
 	},
 }
