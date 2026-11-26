@@ -1,10 +1,10 @@
-local Players=game:GetService('Players')local GuiService=game:GetService(
+local Players=game:GetService('Players')local RunService=game:GetService('RunService')local Workspace=game:GetService('Workspace')local GuiService=game:GetService(
 'GuiService')local HttpService=game:GetService('HttpService')local Stats=game:
 GetService('Stats')local TextService=game:GetService('TextService')local
 TweenService=game:GetService('TweenService')local UserInputService=game:
 GetService('UserInputService')local IsA=game.IsA local GetChildren=game.
 GetChildren local GetDescendants=game.GetDescendants local FindFirstChild=game.
-FindFirstChild local GetPropertyChangedSignal=game.GetPropertyChangedSignal
+FindFirstChild local FindFirstChildOfClass=game.FindFirstChildOfClass local GetPropertyChangedSignal=game.GetPropertyChangedSignal
 local NewUDim=UDim.new local NewUDim2=UDim2.new local NewVector2=Vector2.new
 local NewInstance=Instance.new local NewColor3=Color3.new local NewRGB=Color3.
 fromRGB local FromHSV=Color3.fromHSV local FromHex=Color3.fromHex local Sub=
@@ -868,7 +868,875 @@ BackgroundTransparency=1})self.Items.Fade.BackgroundTransparency=0 self.Items.
 FadeGradient.BackgroundTransparency=0 end self.TabInfo=control.Items end items.
 Button.MouseButton1Down:Connect(function()Library:CloseElement()control.OpenTab(
 )end)if not self.TabInfo then items.TextPadding.PaddingRight=NewUDim(0,8)control
-.OpenTab()end return setmetatable(control,Library)end function Library:
+.OpenTab()end return setmetatable(control,Library)end
+function Library:PlayerList(properties)
+	local selectionRequest = 0
+	local Cfg = {
+		Players = {},
+		PriorityByUserId = {},
+		Items = {},
+		Selected = nil,
+	}
+
+	local Colors = {
+		["Neutral"] = Themes.preset.text_color,
+		["Friendly"] = NewRGB(38, 89, 140),
+		["Enemy"] = NewRGB(140, 0, 2),
+	}
+
+	local viewBindName = "MoonLuaPlayerListView_" .. tostring(Cfg)
+	local viewBound = false
+	local viewHadTarget = false
+	local viewCachedPlayer = nil
+	local viewCachedHumanoid = nil
+	local viewCharAddedConn = nil
+	local viewCharRemovingConn = nil
+
+	local function GetSelectedPlayer()
+		local selected = Cfg.Selected
+		if not selected then
+			return nil
+		end
+		local player = selected.Player
+		if TypeOf(player) ~= "Instance" or not IsA(player, "Player") then
+			return nil
+		end
+		local lp = Players.LocalPlayer
+		local userId = player.UserId
+		if Type(userId) ~= "number" or not lp or userId == lp.UserId then
+			return nil
+		end
+		local livePlayer = Players:GetPlayerByUserId(userId)
+		if not livePlayer then
+			return nil
+		end
+		return livePlayer
+	end
+
+	local function BindViewTarget(player)
+		if viewCharAddedConn then
+			viewCharAddedConn:Disconnect()
+			viewCharAddedConn = nil
+		end
+		if viewCharRemovingConn then
+			viewCharRemovingConn:Disconnect()
+			viewCharRemovingConn = nil
+		end
+		viewCachedPlayer = player
+		viewCachedHumanoid = nil
+		if not player then
+			return
+		end
+		local function cacheHumanoid(character)
+			viewCachedHumanoid = character and FindFirstChildOfClass(character, "Humanoid") or nil
+		end
+		cacheHumanoid(player.Character)
+		viewCharAddedConn = player.CharacterAdded:Connect(cacheHumanoid)
+		viewCharRemovingConn = player.CharacterRemoving:Connect(function()
+			viewCachedHumanoid = nil
+		end)
+	end
+
+	local function RestoreLocalCamera()
+		local lp = Players.LocalPlayer
+		local character = lp and lp.Character
+		local humanoid = character and FindFirstChildOfClass(character, "Humanoid")
+		local cam = Workspace.CurrentCamera
+		if humanoid and cam then
+			cam.CameraSubject = humanoid
+		end
+	end
+
+	local function StopView()
+		local wasViewing = viewBound or viewHadTarget
+		if viewBound then
+			pcall(RunService.UnbindFromRenderStep, RunService, viewBindName)
+			viewBound = false
+		end
+		BindViewTarget(nil)
+		viewHadTarget = false
+		if wasViewing then
+			RestoreLocalCamera()
+		end
+	end
+
+	local function ApplyView()
+		if viewBound then
+			pcall(RunService.UnbindFromRenderStep, RunService, viewBindName)
+			viewBound = false
+		end
+		-- Run after Roblox's camera update so CameraSubject is not overwritten in the same frame.
+		RunService:BindToRenderStep(viewBindName, Enum.RenderPriority.Camera.Value + 1, function()
+			if unloaded then
+				StopView()
+				return
+			end
+			local target = GetSelectedPlayer()
+			local cam = Workspace.CurrentCamera
+			if not target or not cam then
+				if viewHadTarget then
+					RestoreLocalCamera()
+					viewHadTarget = false
+				end
+				if viewCachedPlayer ~= nil then
+					BindViewTarget(nil)
+				end
+				return
+			end
+			if viewCachedPlayer ~= target then
+				BindViewTarget(target)
+			end
+			local humanoid = viewCachedHumanoid
+			if not humanoid or not humanoid.Parent then
+				local character = target.Character
+				humanoid = character and FindFirstChildOfClass(character, "Humanoid") or nil
+				viewCachedHumanoid = humanoid
+			end
+			if not humanoid then
+				return
+			end
+			viewHadTarget = true
+			cam.CameraSubject = humanoid
+		end)
+		viewBound = true
+	end
+
+	if Library.Items then
+		Library:Connection(Library.Items.Destroying, StopView)
+	end
+
+	if self.Items.LeftScroll then
+		self.Items.LeftScroll:Destroy()
+	end
+	if self.Items.RightScroll then
+		self.Items.RightScroll:Destroy()
+	end
+
+	local Items = Cfg.Items
+	do
+		Library:Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalFlex = Enum.UIFlexAlignment.Fill,
+			Parent = self.Items.Page,
+			Padding = NewUDim(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalFlex = Enum.UIFlexAlignment.Fill,
+		})
+
+		Items.Column = Library:Create("Frame", {
+			Parent = self.Items.Page,
+			BackgroundTransparency = 1,
+			Name = "\0",
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(0, 100, 0, 100),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		Library:Create("UIListLayout", {
+			Parent = Items.Column,
+			Padding = NewUDim(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		})
+
+		Items.Outline = Library:Create("Frame", {
+			Name = "\0",
+			Parent = Items.Column,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, 0, 1, -84),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.outline,
+		})
+		Library:Themify(Items.Outline, "outline", "BackgroundColor3")
+
+		Items.PriorityHolder = Library:Create("Frame", {
+			Parent = Items.Outline,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 19),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 0, 18),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.outline,
+		})
+		Library:Themify(Items.PriorityHolder, "outline", "BackgroundColor3")
+
+		Items.Inline = Library:Create("Frame", {
+			Parent = Items.PriorityHolder,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.inline,
+		})
+		Library:Themify(Items.Inline, "inline", "BackgroundColor3")
+
+		Items.Background = Library:Create("Frame", {
+			Parent = Items.Inline,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		local gradient = Library:Create("UIGradient", {
+			Rotation = 90,
+			Parent = Items.Background,
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Themes.preset.inline),
+				ColorSequenceKeypoint.new(1, Themes.preset.gradient),
+			}),
+		})
+		Library:SaveGradient(gradient, "Selected")
+
+		Library:Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalFlex = Enum.UIFlexAlignment.Fill,
+			Parent = Items.Background,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalFlex = Enum.UIFlexAlignment.Fill,
+		})
+
+		Items.UITitle = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = "Name",
+			Parent = Items.Background,
+			Name = "\0",
+			BackgroundTransparency = 1,
+			Size = NewUDim2(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Create("UIStroke", {
+			Parent = Items.UITitle,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+
+		Items.UITitle = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = "UserId",
+			Parent = Items.Background,
+			Name = "\0",
+			BackgroundTransparency = 1,
+			Size = NewUDim2(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Create("UIStroke", {
+			Parent = Items.UITitle,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+
+		Items.UITitle = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = "Priority",
+			Parent = Items.Background,
+			Name = "\0",
+			BackgroundTransparency = 1,
+			Size = NewUDim2(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Create("UIStroke", {
+			Parent = Items.UITitle,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+
+		Items.ScrollingFrame = Library:Create("ScrollingFrame", {
+			ScrollBarImageColor3 = NewRGB(45, 108, 168),
+			MidImage = "rbxassetid://74268315755026",
+			Active = true,
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollBarThickness = 3,
+			Parent = Items.Outline,
+			Size = NewUDim2(1, -4, 1, -38),
+			BorderColor3 = NewRGB(0, 0, 0),
+			BackgroundColor3 = NewRGB(255, 255, 255),
+			TopImage = "rbxassetid://74268315755026",
+			Position = NewUDim2(0, 2, 0, 38),
+			BackgroundTransparency = 1,
+			BottomImage = "rbxassetid://74268315755026",
+			BorderSizePixel = 0,
+			CanvasSize = NewUDim2(0, 0, 0, 0),
+		})
+
+		Library:Create("UIListLayout", {
+			Parent = Items.ScrollingFrame,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		})
+
+		Items.Refresh = Library:Create("TextButton", {
+			Active = false,
+			BorderColor3 = NewRGB(0, 0, 0),
+			AnchorPoint = NewVector2(1, 0),
+			Parent = Items.Outline,
+			Name = "\0",
+			Position = NewUDim2(1, -1, 0, 1),
+			Size = NewUDim2(0, 58, 0, 18),
+			Selectable = false,
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.outline,
+		})
+		Library:Themify(Items.Refresh, "outline", "BackgroundColor3")
+
+		Items.Inline = Library:Create("Frame", {
+			Parent = Items.Refresh,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.inline,
+		})
+		Library:Themify(Items.Inline, "inline", "BackgroundColor3")
+
+		Items.Background = Library:Create("Frame", {
+			Parent = Items.Inline,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		local refreshGradient = Library:Create("UIGradient", {
+			Rotation = 90,
+			Parent = Items.Background,
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Themes.preset.inline),
+				ColorSequenceKeypoint.new(1, Themes.preset.gradient),
+			}),
+		})
+		Library:SaveGradient(refreshGradient, "Selected")
+
+		Items.Name = Library:Create("TextLabel", {
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = "Refresh",
+			Parent = Items.Background,
+			Name = "\0",
+			Size = NewUDim2(1, 0, 1, 0),
+			Position = NewUDim2(0, 3, 0, 0),
+			BackgroundTransparency = 1,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.XY,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Create("UIStroke", {
+			Parent = Items.Name,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+		Library:Create("UIPadding", {
+			Parent = Items.Name,
+		})
+
+		Items.Holder = Library:Create("Frame", {
+			BorderColor3 = NewRGB(0, 0, 0),
+			Parent = Items.Outline,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			Size = NewUDim2(1, -60, 0, 18),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.outline,
+		})
+		Library:Themify(Items.Holder, "outline", "BackgroundColor3")
+
+		Items.Search = Library:Create("TextBox", {
+			Active = true,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Parent = Items.Holder,
+			Name = "\0",
+			Selectable = false,
+			Position = NewUDim2(0, 5, 0, 0),
+			Size = NewUDim2(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			FontFace = Library.Font,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTransparency = 0,
+			TextColor3 = Themes.preset.text_color,
+			BackgroundTransparency = 1,
+			Text = "",
+			TextSize = Library.TextSize,
+			ZIndex = 2,
+			PlaceholderText = "Search Here",
+		})
+		Library:Create("UIStroke", {
+			Parent = Items.Search,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+
+		Items.Inline = Library:Create("Frame", {
+			Parent = Items.Holder,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.inline,
+		})
+		Library:Themify(Items.Inline, "inline", "BackgroundColor3")
+
+		Items.Background = Library:Create("Frame", {
+			Parent = Items.Inline,
+			Name = "\0",
+			Position = NewUDim2(0, 1, 0, 1),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, -2, 1, -2),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		local searchGradient = Library:Create("UIGradient", {
+			Rotation = 90,
+			Parent = Items.Background,
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Themes.preset.inline),
+				ColorSequenceKeypoint.new(1, Themes.preset.gradient),
+			}),
+		})
+		Library:SaveGradient(searchGradient, "Selected")
+
+		Items.PlayerSelection = Library:Create("Frame", {
+			Name = "\0",
+			Parent = Items.Column,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(1, 0, 0, 80),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Themes.preset.outline,
+		})
+		Library:Themify(Items.PlayerSelection, "outline", "BackgroundColor3")
+
+		Items.ImageProfile = Library:Create("ImageLabel", {
+			BorderColor3 = NewRGB(0, 0, 0),
+			Parent = Items.PlayerSelection,
+			Name = "\0",
+			AnchorPoint = NewVector2(0, 0.5),
+			Image = "rbxassetid://131920135912699",
+			BackgroundTransparency = 1,
+			Position = NewUDim2(0, 8, 0.5, 0),
+			Size = NewUDim2(0, 64, 0, 64),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		Items.Elements = Library:Create("Frame", {
+			Parent = Items.PlayerSelection,
+			Name = "\0",
+			BackgroundTransparency = 1,
+			Position = NewUDim2(0, 84, 0, 8),
+			BorderColor3 = NewRGB(0, 0, 0),
+			Size = NewUDim2(0, 100, 0, 1),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		local Parent = setmetatable(Cfg, Library)
+		Items.NameLabel = Parent:Label({ Name = "Name: ???" })
+		Items.DisplayNameLabel = Parent:Label({ Name = "DisplayName: ???" })
+		Items.UserIdLabel = Parent:Label({ Name = "UserId: ???" })
+
+		Library:Create("UIListLayout", {
+			Parent = Items.Elements,
+			Padding = NewUDim(0, 3),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		})
+
+		Items.Elements = Library:Create("Frame", {
+			BorderColor3 = NewRGB(0, 0, 0),
+			AnchorPoint = NewVector2(1, 0),
+			Parent = Items.PlayerSelection,
+			BackgroundTransparency = 1,
+			Position = NewUDim2(1, -4, 0, 8),
+			Name = "\0",
+			Size = NewUDim2(0, 150, 0, 1),
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		Items.PriorityDropdown = Parent:Dropdown({
+			Name = "Priority",
+			Options = { "Friendly", "Enemy", "Neutral" },
+			Callback = function(option)
+				if Cfg.ModifyPriority then
+					Cfg.ModifyPriority(option)
+				end
+			end,
+		})
+
+		Items.ViewToggle = Parent:Toggle({
+			Name = "View",
+			Flag = "PlayerListView",
+			Default = false,
+			Callback = function(enabled)
+				if enabled then
+					ApplyView()
+				else
+					StopView()
+				end
+			end,
+		})
+
+		Library:Create("UIListLayout", {
+			Parent = Items.Elements,
+			Padding = NewUDim(0, 3),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		})
+	end
+
+	function Cfg.AddPlayer(player)
+		local SeperateData = {}
+		SeperateData.Player = player
+		SeperateData.DisplayName = player.DisplayName
+		local isLocalPlayer = player.UserId == Players.LocalPlayer.UserId
+		local priority = isLocalPlayer and "LocalPlayer" or Cfg.PriorityByUserId[player.UserId] or "Neutral"
+
+		SeperateData.Background = Library:Create("TextButton", {
+			Active = false,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Parent = Items.ScrollingFrame,
+			Name = "\0",
+			Size = NewUDim2(1, -2, 0, 19),
+			BackgroundTransparency = 1,
+			Position = NewUDim2(0, 1, 0, 1),
+			Selectable = false,
+			TextTransparency = 1,
+			BorderSizePixel = 0,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+
+		local rowGradient = Library:Create("UIGradient", {
+			Rotation = 90,
+			Parent = SeperateData.Background,
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Themes.preset.inline),
+				ColorSequenceKeypoint.new(1, Themes.preset.gradient),
+			}),
+		})
+		Library:SaveGradient(rowGradient, "Selected")
+
+		Library:Create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalFlex = Enum.UIFlexAlignment.Fill,
+			Parent = SeperateData.Background,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalFlex = Enum.UIFlexAlignment.Fill,
+		})
+
+		SeperateData.Name = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = player.Name,
+			Parent = SeperateData.Background,
+			Name = "\0",
+			Size = NewUDim2(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Themify(SeperateData.Name, "accent", "TextColor3")
+		Library:Create("UIStroke", {
+			Parent = SeperateData.Name,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+		Library:Create("UIPadding", {
+			PaddingLeft = NewUDim(0, 4),
+			Parent = SeperateData.Name,
+		})
+
+		SeperateData.UserId = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = Themes.preset.text_color,
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = player.UserId,
+			Parent = SeperateData.Background,
+			Name = "\0",
+			BackgroundTransparency = 1,
+			Size = NewUDim2(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Themify(SeperateData.UserId, "accent", "TextColor3")
+		Library:Create("UIStroke", {
+			Parent = SeperateData.UserId,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+
+		SeperateData.Priority = Library:Create("TextLabel", {
+			LayoutOrder = -1,
+			FontFace = Library.Font,
+			TextColor3 = isLocalPlayer and NewRGB(119, 119, 119) or Colors[priority],
+			BorderColor3 = NewRGB(0, 0, 0),
+			Text = priority,
+			Parent = SeperateData.Background,
+			Name = "\0",
+			Size = NewUDim2(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			BorderSizePixel = 0,
+			AutomaticSize = Enum.AutomaticSize.X,
+			TextSize = Library.TextSize,
+			BackgroundColor3 = NewRGB(255, 255, 255),
+		})
+		Library:Create("UIStroke", {
+			Parent = SeperateData.Priority,
+			LineJoinMode = Enum.LineJoinMode.Miter,
+		})
+		Library:Create("UIPadding", {
+			PaddingRight = NewUDim(0, 8),
+			Parent = SeperateData.Priority,
+		})
+
+		SeperateData.Background.MouseButton1Click:Connect(function()
+			if SeperateData.Priority.Text == "LocalPlayer" then
+				return
+			end
+			local selectedPlayer = SeperateData.Player
+			if not selectedPlayer then
+				return
+			end
+
+			local Old = Cfg.Selected
+			if Old then
+				Old.Name.TextColor3 = Themes.preset.text_color
+				Old.UserId.TextColor3 = Themes.preset.text_color
+			end
+
+			SeperateData.Name.TextColor3 = Themes.preset.accent
+			SeperateData.UserId.TextColor3 = Themes.preset.accent
+			Cfg.Selected = SeperateData
+			selectionRequest = selectionRequest + 1
+			local request = selectionRequest
+			Items.ImageProfile.Image = ""
+
+			Items.NameLabel.Set("Name: " .. selectedPlayer.Name)
+			Items.UserIdLabel.Set("UserId: " .. selectedPlayer.UserId)
+			Items.DisplayNameLabel.Set("DisplayName: " .. selectedPlayer.DisplayName)
+
+			task.spawn(function()
+				local success, thumbnail = pcall(function()
+					return Players:GetUserThumbnailAsync(
+						selectedPlayer.UserId,
+						Enum.ThumbnailType.AvatarThumbnail,
+						Enum.ThumbnailSize.Size150x150
+					)
+				end)
+				if
+					success
+					and request == selectionRequest
+					and Cfg.Selected == SeperateData
+					and Items.ImageProfile.Parent
+				then
+					Items.ImageProfile.Image = thumbnail
+				end
+			end)
+			Wait()
+			if request == selectionRequest and Cfg.Selected == SeperateData then
+				Items.PriorityDropdown.Set(SeperateData.Priority.Text)
+			end
+		end)
+
+		Cfg.Players[player.Name] = SeperateData
+	end
+
+	local function findPlayerRow(player)
+		if not player then
+			return nil, nil
+		end
+		local userId = player.UserId
+		local directRow = Cfg.Players[player.Name]
+		if directRow and directRow.Player and directRow.Player.UserId == userId then
+			return directRow, player.Name
+		end
+		for name, row in Cfg.Players do
+			if row and row.Player and row.Player.UserId == userId then
+				return row, name
+			end
+		end
+		return nil, nil
+	end
+
+	local function refreshPlayerRow(player, row, oldName)
+		if oldName and oldName ~= player.Name then
+			Cfg.Players[oldName] = nil
+		end
+		row.Player = player
+		row.DisplayName = player.DisplayName
+		row.Name.Text = player.Name
+		row.UserId.Text = player.UserId
+		local isLocalPlayer = player.UserId == Players.LocalPlayer.UserId
+		local priority = isLocalPlayer and "LocalPlayer" or Cfg.PriorityByUserId[player.UserId] or "Neutral"
+		row.Priority.Text = priority
+		row.Priority.TextColor3 = isLocalPlayer and NewRGB(119, 119, 119) or Colors[priority]
+		row.Offline = false
+		Cfg.Players[player.Name] = row
+	end
+
+	local function clearSelectedPlayer(row)
+		if Cfg.Selected ~= row then
+			return
+		end
+		Cfg.Selected = nil
+		selectionRequest = selectionRequest + 1
+		Items.ImageProfile.Image = ""
+		Items.NameLabel.Set("Name: ???")
+		Items.UserIdLabel.Set("UserId: ???")
+		Items.DisplayNameLabel.Set("DisplayName: ???")
+		Items.PriorityDropdown.Set("Neutral", true)
+		if viewHadTarget then
+			RestoreLocalCamera()
+			viewHadTarget = false
+		end
+		if viewCachedPlayer ~= nil then
+			BindViewTarget(nil)
+		end
+	end
+
+	function Cfg.RemovePlayer(player)
+		local row, name = findPlayerRow(player)
+		if not row then
+			return false
+		end
+		if row.Background then
+			row.Background:Destroy()
+		end
+		Cfg.Players[name] = nil
+		clearSelectedPlayer(row)
+		return true
+	end
+
+	function Cfg.MarkPlayerOffline(player)
+		local row = findPlayerRow(player)
+		if not row then
+			return false
+		end
+		row.Offline = true
+		clearSelectedPlayer(row)
+		return true
+	end
+
+	function Cfg.ModifyPriority(Priority, targetItems)
+		local Path = targetItems or Cfg.Selected
+		if Path then
+			local player = Path.Player
+			if player and player.UserId ~= Players.LocalPlayer.UserId then
+				if Priority == "Friendly" or Priority == "Enemy" then
+					Cfg.PriorityByUserId[player.UserId] = Priority
+				else
+					Cfg.PriorityByUserId[player.UserId] = nil
+				end
+			end
+			Path.Priority.Text = Priority
+			Path.Priority.TextColor3 = Colors[Priority]
+		end
+	end
+
+	function Cfg.GetPriority(Player)
+		return Cfg.Players[Player].Priority.Text
+	end
+
+	local function applyPlayerSearch()
+		local query = string.lower(Items.Search.Text):gsub("^%s+", ""):gsub("%s+$", "")
+		for _, row in Cfg.Players do
+			local player = row.Player
+			local playerName = row.Name.Text
+			local displayName = row.DisplayName or (player and player.DisplayName) or ""
+			local userId = tostring(row.UserId.Text)
+			if query == "" then
+				row.Background.Visible = true
+			else
+				local nameHit = string.find(string.lower(playerName), query, 1, true) ~= nil
+				local displayHit = string.find(string.lower(displayName), query, 1, true) ~= nil
+				local idHit = string.find(userId, query, 1, true) ~= nil
+				row.Background.Visible = nameHit or displayHit or idHit
+			end
+		end
+	end
+
+	local function pruneOfflinePlayers()
+		local online = {}
+		for _, player in Players:GetPlayers() do
+			online[player.UserId] = true
+		end
+		local offline = {}
+		for _, row in Cfg.Players do
+			local player = row and row.Player
+			if player and not online[player.UserId] and not Cfg.PriorityByUserId[player.UserId] then
+				Insert(offline, player)
+			end
+		end
+		for _, player in offline do
+			Cfg.RemovePlayer(player)
+		end
+	end
+
+	for _, player in Players:GetPlayers() do
+		Cfg.AddPlayer(player)
+	end
+	applyPlayerSearch()
+
+	Items.Refresh.MouseButton1Click:Connect(function()
+		pruneOfflinePlayers()
+		for _, player in Players:GetPlayers() do
+			if not findPlayerRow(player) then
+				Cfg.AddPlayer(player)
+			end
+		end
+		applyPlayerSearch()
+	end)
+
+	Library:Connection(Players.PlayerAdded, function(player)
+		local row, name = findPlayerRow(player)
+		if row then
+			refreshPlayerRow(player, row, name)
+		else
+			Cfg.AddPlayer(player)
+		end
+		applyPlayerSearch()
+	end)
+
+	Library:Connection(Players.PlayerRemoving, function(player)
+		if Cfg.PriorityByUserId[player.UserId] then
+			Cfg.MarkPlayerOffline(player)
+		else
+			Cfg.RemovePlayer(player)
+		end
+		applyPlayerSearch()
+	end)
+
+	GetPropertyChangedSignal(Items.Search, "Text"):Connect(applyPlayerSearch)
+
+	return setmetatable(Cfg, Library)
+end
+function Library:
 MultiSection(opts)local control={Tabs=opts.Tabs or{'1','2','3'},Side=opts.side
 or opts.Side or'Left',Size=opts.size or opts.Size or nil,Items={},Store={}}local
 items=control.Items do items.Section=Library:Create('Frame',{Parent=self.Items[
