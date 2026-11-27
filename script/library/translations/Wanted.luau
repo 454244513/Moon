@@ -1,5 +1,4 @@
-return {
-	zh = {
+local zh = {
 		["Various"] = "多项",
 		["Search..."] = "搜索…",
 		["No matches"] = "无匹配项",
@@ -25,6 +24,7 @@ return {
 		["Misc"] = "杂项",
 		["Movement"] = "移动",
 		["Visual"] = "视觉",
+		["Targets"] = "目标",
 		["Tracer Targets"] = "弹道目标",
 		["Teammates"] = "队友",
 		["Local Player"] = "自身",
@@ -37,10 +37,12 @@ return {
 		["Lightning"] = "闪电",
 		["DNA"] = "DNA",
 		["Bullet Tracer"] = "子弹弹道",
+		["Bullet Tracers"] = "子弹弹道",
 		["Local"] = "自身",
 		["Team"] = "队友",
 		["Enemy"] = "敌人",
 		["Local Color"] = "自身弹道颜色",
+		["Local Player Color"] = "自身弹道颜色",
 		["Teammates Color"] = "队友颜色",
 		["Team Color"] = "队友弹道颜色",
 		["Enemy Color"] = "敌人弹道颜色",
@@ -227,5 +229,9 @@ return {
 		["Wheelie Angle"] = "翘头角度",
 		["Front Angle"] = "前部角度",
 		["Slope Torque Scale"] = "坡道扭矩倍率",
-	},
+}
+
+return {
+	zh = zh,
+	["zh-cn"] = zh,
 }

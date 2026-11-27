@@ -1,5 +1,4 @@
-return {
-	zh = {
+local zh = {
 		["None"] = "无",
 		["Various"] = "多项",
 		["Search..."] = "搜索…",
@@ -10,7 +9,9 @@ return {
 		["Visual"] = "视觉",
 		["Ragebot"] = "愤怒机器人",
 		["Bullet Tracer"] = "子弹弹道",
+		["Bullet Tracers"] = "子弹弹道",
 		["Enabled"] = "启用",
+		["Targets"] = "目标",
 		["Local Player"] = "自身",
 		["Teammates"] = "队友",
 		["Enemy"] = "敌人",
@@ -21,6 +22,7 @@ return {
 		["Tracer Texture"] = "轨迹纹理",
 		["Duration"] = "持续时间",
 		["Local Color"] = "自身弹道颜色",
+		["Local Player Color"] = "自身弹道颜色",
 		["Teammates Color"] = "队友弹道颜色",
 		["Enemy Color"] = "敌人弹道颜色",
 		["Obelus"] = "方尖碑",
@@ -32,5 +34,9 @@ return {
 		["ESP Name/Health"] = "名称/生命值 ESP",
 		["Only Enemy"] = "仅显示敌人",
 		["Language"] = "语言",
-	},
+}
+
+return {
+	zh = zh,
+	["zh-cn"] = zh,
 }

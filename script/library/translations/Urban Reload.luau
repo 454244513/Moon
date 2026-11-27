@@ -1,5 +1,4 @@
-return {
-	zh = {
+local zh = {
 		["Various"] = "多项",
 		["None"] = "无",
 		["Search..."] = "搜索…",
@@ -30,10 +29,12 @@ return {
 		["Name Font Size"] = "名称字号",
 		["Name Color"] = "名称颜色",
 		["Bullet Tracers"] = "弹道曳光",
+		["Targets"] = "目标",
 		["Tracer Targets"] = "轨迹目标",
 		["Enemy"] = "敌人",
 		["Local Player"] = "本地玩家",
 		["Enemy Color"] = "敌人颜色",
+		["Local Player Color"] = "本地玩家颜色",
 		["Local Color"] = "本地颜色",
 		["Type"] = "类型",
 		["Texture"] = "贴图",
@@ -43,5 +44,9 @@ return {
 		["Lightning"] = "闪电",
 		["DNA"] = "DNA",
 		["Duration"] = "持续时间",
-	},
+}
+
+return {
+	zh = zh,
+	["zh-cn"] = zh,
 }

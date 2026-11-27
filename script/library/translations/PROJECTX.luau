@@ -20,6 +20,7 @@ return {
 		["Enemy Color"] = "敌人颜色",
 		["Teammates Color"] = "队友颜色",
 		["Local Color"] = "自己颜色",
+		["Local Player Color"] = "自己颜色",
 		["Type"] = "类型",
 		["Texture"] = "贴图",
 		["LineHandleAdornment"] = "实心线",
